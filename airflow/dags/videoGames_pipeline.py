@@ -107,8 +107,21 @@ def process_data_task(**context):
     print("Data processed successfully")
 
 def write_data_task(**context):
+    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
+    if os.path.exists(PROCESSED_FILES_TRACKER):
+        with open(PROCESSED_FILES_TRACKER, 'r') as f:
+            processed = set(f.read().splitlines())
+    else:
+        processed = set()
+
+    new_file = None
+    for f in files:
+        if f not in processed:
+            new_file = f
+            break
+
     df_processed = context['ti'].xcom_pull(key='processed_data')
-    Writer(df_processed, OUTPUT_FILENAME, OUTPUT_FOLDER)
+    Writer(df_processed, new_file, OUTPUT_FOLDER)
 
     filename = context['ti'].xcom_pull(key='filename')
     with open(PROCESSED_FILES_TRACKER, 'a') as f:

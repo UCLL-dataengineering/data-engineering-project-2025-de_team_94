@@ -10,12 +10,16 @@ OUTPUT_FOLDER = 'dags/output'
 OUTPUT_FILENAME = 'batch_processed_data'
 FILE_INDEX = 1
 
+
 def read_data(**context):
     reader = Reader(DATA_FOLDER)
+    df_items = reader.listFile()
+
     df = reader.getDfByIndex(FILE_INDEX)
     tmp_path = '/tmp/raw_data.csv'
     df.to_csv(tmp_path, index=False)
     context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
+    context['ti'].xcom_push(key='df_items', value=df_items)
     print("Data read successfully")
 
 def validate_data(**context):
@@ -53,8 +57,10 @@ def process_data_task(**context):
 
 def write_data_task(**context):
     df_processed = context['ti'].xcom_pull(key='processed_data')
-    Writer(df_processed, OUTPUT_FILENAME, OUTPUT_FOLDER)
+    df_items = context['ti'].xcom_pull(key='df_items')
+    Writer(df_processed, df_items[FILE_INDEX - 1], OUTPUT_FOLDER)
     print("Data written successfully")
+    #FILE_INDEX += 1
 
 default_args = {
     'start_date': datetime.today(),

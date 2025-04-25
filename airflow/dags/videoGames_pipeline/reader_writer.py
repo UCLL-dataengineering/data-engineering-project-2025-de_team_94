@@ -50,7 +50,7 @@ class Writer():
         
         os.makedirs(self.folder_path, exist_ok=True)
         
-        file_path = os.path.join(self.folder_path, self.fn + '.csv')
+        file_path = os.path.join(self.folder_path, self.fn)
         self.df.to_csv(file_path, index=False)
         print("File saved successfully to CSV")
     
@@ -59,9 +59,9 @@ class Writer():
 
         conn_str = "DefaultEndpointsProtocol=https;AccountName=batchprocessing94;AccountKey=aH9cA5Xwbv+fELTDQPG3BZaM1AvUAK7LQTX5A6PDYMHTw6EqcXlSvzlw5Aqfs7i3XdJSzgQQw3OZ+AStf56OCw==;EndpointSuffix=core.windows.net"
         container_name = "realtimeprocessingcontainer"
-        blob_name = "real_time_data.csv"
+        blob_name = self.fn
 
-        file_path = os.path.join(self.folder_path, self.fn + '.csv')
+        file_path = os.path.join(self.folder_path, self.fn)
 
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
 
