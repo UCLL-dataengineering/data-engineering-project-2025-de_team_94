@@ -5,9 +5,9 @@ from nashville_housing_pipeline.processor import process_data
 from nashville_housing_pipeline.reader_writer import Reader, Writer
 from nashville_housing_pipeline.validation import validate_dataset
 
-DATA_FOLDER = 'dags/files'
+DATA_FOLDER = 'dags/files/batch'
 OUTPUT_FOLDER = 'dags/output'
-OUTPUT_FILENAME = 'processed_data'
+OUTPUT_FILENAME = 'batch_processed_data'
 FILE_INDEX = 1
 
 def read_data(**context):
@@ -62,7 +62,7 @@ default_args = {
 }
 
 dag = DAG(
-    'demo_nashville_housi_pipeline',
+    'demo_nashville_housing_pipeline',
     description='Nashville Housing Data Pipeline',
     schedule_interval=None,
     default_args=default_args,
