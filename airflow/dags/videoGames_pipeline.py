@@ -1,24 +1,30 @@
+import os
 from airflow import DAG
 from videoGames_pipeline.processor import process_data
 from videoGames_pipeline.reader_writer import Reader, Writer
 from videoGames_pipeline.validation import validate_dataset
 from airflow.operators.python import PythonOperator
-from datetime import datetime
+from datetime import datetime, timedelta
 from airflow.sensors.filesystem import FileSensor
-
 
 DATA_FOLDER = 'dags/files/realtime'
 OUTPUT_FOLDER = 'dags/output'
 OUTPUT_FILENAME = 'realtime_processed_data'
-FILE_INDEX = 1
 
 def read_data(**context):
-    reader = Reader(DATA_FOLDER)
-    df = reader.getDfByIndex(FILE_INDEX)
-    tmp_path = '/tmp/raw_data.csv'
-    df.to_csv(tmp_path, index=False)
-    context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
-    print("Data read successfully")
+    import pandas as pd
+    for file in os.listdir(DATA_FOLDER):
+        if file.endswith('.csv'):
+            file_path = os.path.join(DATA_FOLDER, file)
+            print(f"Reading file from: {file_path}")
+            df = pd.read_csv(file_path)
+
+            tmp_path = '/tmp/raw_data.csv'
+            df.to_csv(tmp_path, index=False)
+            context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
+            context['ti'].xcom_push(key='csv_filename', value=file)
+            return
+    raise FileNotFoundError("No CSV file found in directory")
 
 def validate_data(**context):
     import pandas as pd
@@ -59,26 +65,27 @@ def write_data_task(**context):
     print("Data written successfully")
 
 default_args = {
-    'start_date': datetime.today(),
-    'retries': 0
+    'start_date': datetime(2023, 1, 1),  
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
 }
 
 dag = DAG(
     'demo_video_games_pipeline',
     description='VideoGames Data Pipeline',
-    schedule_interval=None,
+    schedule_interval='* * * * *',  
     default_args=default_args,
     catchup=False
 )
 
 with dag:
-    wait_for_file = FileSensor(
-        task_id='wait_for_file',
-        filepath="*.csv",
+    wait_for_csv = FileSensor(
+        task_id='wait_for_csv',
+        filepath='*.csv',
         fs_conn_id='fs_default',
-        poke_interval=10,
-        timeout=300,
-        mode='poke'
+        poke_interval=10,  
+        timeout=600,  
+        mode='poke',
     )
 
     task_read = PythonOperator(
@@ -101,5 +108,4 @@ with dag:
         python_callable=write_data_task,
     )
 
-    # Define task dependencies
-    wait_for_file >> task_read >> task_validate >> task_process >> task_write
+    wait_for_csv >> task_read >> task_validate >> task_process >> task_write

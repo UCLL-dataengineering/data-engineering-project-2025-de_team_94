@@ -69,6 +69,6 @@ class Writer():
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
 
         with open(file_path, "rb") as data:
-            blob_client.upload_blob(data)
+            blob_client.upload_blob(data, overwrite=True)
             print("File uploaded to Azure Blob Storage successfully")      
     
