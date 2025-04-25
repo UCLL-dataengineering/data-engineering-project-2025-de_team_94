@@ -5,26 +5,73 @@ from videoGames_pipeline.reader_writer import Reader, Writer
 from videoGames_pipeline.validation import validate_dataset
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
-from airflow.sensors.filesystem import FileSensor
+from airflow.sensors.python import PythonSensor
 
 DATA_FOLDER = 'dags/files/realtime'
 OUTPUT_FOLDER = 'dags/output'
 OUTPUT_FILENAME = 'realtime_processed_data'
+PROCESSED_FILES_TRACKER = 'dags/tmp/processed_files.txt'
+
+def check_new_file():
+    if not os.path.exists(DATA_FOLDER):
+        return False
+    
+    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
+
+    if os.path.exists(PROCESSED_FILES_TRACKER):
+        with open(PROCESSED_FILES_TRACKER, 'r') as f:
+            processed = set(f.read().splitlines())
+    else:
+        processed = set()
+
+    for f in files:
+        if f not in processed:
+            return True
+    return False
+
 
 def read_data(**context):
     import pandas as pd
-    for file in os.listdir(DATA_FOLDER):
-        if file.endswith('.csv'):
-            file_path = os.path.join(DATA_FOLDER, file)
-            print(f"Reading file from: {file_path}")
-            df = pd.read_csv(file_path)
 
-            tmp_path = '/tmp/raw_data.csv'
-            df.to_csv(tmp_path, index=False)
-            context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
-            context['ti'].xcom_push(key='csv_filename', value=file)
-            return
-    raise FileNotFoundError("No CSV file found in directory")
+    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
+    if os.path.exists(PROCESSED_FILES_TRACKER):
+        with open(PROCESSED_FILES_TRACKER, 'r') as f:
+            processed = set(f.read().splitlines())
+    else:
+        processed = set()
+
+    new_file = None
+    for f in files:
+        if f not in processed:
+            new_file = f
+            break
+
+    if not new_file:
+        raise FileNotFoundError("No new files found")
+    
+    full_path = os.path.join(DATA_FOLDER, new_file)
+    df = pd.read_csv(full_path)
+    tmp_path = '/tmp/raw_data.csv'
+    df.to_csv(tmp_path, index=False)
+
+    context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
+    context['ti'].xcom_push(key='filename', value=new_file)
+
+    print(f"Data read successfully from {new_file}")
+
+    # for file in os.listdir(DATA_FOLDER):
+    #     if file.endswith('.csv'):
+    #         file_path = os.path.join(DATA_FOLDER, file)
+    #         print(f"Reading file from: {file_path}")
+    #         df = pd.read_csv(file_path)
+
+    #         tmp_path = '/tmp/raw_data.csv'
+    #         df.to_csv(tmp_path, index=False)
+    #         context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
+    #         context['ti'].xcom_push(key='csv_filename', value=file)
+    #         return
+    # raise FileNotFoundError("No CSV file found in directory")
+    #files = []
 
 def validate_data(**context):
     import pandas as pd
@@ -62,6 +109,10 @@ def process_data_task(**context):
 def write_data_task(**context):
     df_processed = context['ti'].xcom_pull(key='processed_data')
     Writer(df_processed, OUTPUT_FILENAME, OUTPUT_FOLDER)
+
+    filename = context['ti'].xcom_pull(key='filename')
+    with open(PROCESSED_FILES_TRACKER, 'a') as f:
+        f.write(filename + '\n')
     print("Data written successfully")
 
 default_args = {
@@ -79,13 +130,12 @@ dag = DAG(
 )
 
 with dag:
-    wait_for_csv = FileSensor(
-        task_id='wait_for_csv',
-        filepath='*.csv',
-        fs_conn_id='fs_default',
-        poke_interval=10,  
-        timeout=600,  
-        mode='poke',
+    wait_for_file = PythonSensor(
+        task_id='wait_for_new_file',
+        python_callable=check_new_file,
+        poke_interval=10,  # Check every 30s
+        timeout=20,
+        mode='poke'
     )
 
     task_read = PythonOperator(
@@ -108,4 +158,4 @@ with dag:
         python_callable=write_data_task,
     )
 
-    wait_for_csv >> task_read >> task_validate >> task_process >> task_write
+    wait_for_file >> task_read >> task_validate >> task_process >> task_write

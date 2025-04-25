@@ -1,2 +1,5 @@
 venv
 airflow/logs
+airflow/dags/__pycache__/
+airflow/dags/videoGames_pipeline/__pycache__/
+airflow/dags/nashville_housing_pipeline/__pycache__/
