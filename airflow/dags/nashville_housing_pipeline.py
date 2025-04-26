@@ -63,16 +63,16 @@ def write_data_task(**context):
     #FILE_INDEX += 1
 
 default_args = {
-    'start_date': datetime.today(),
+    'start_date': datetime.today(),  #'start_date': datetime(2025, 5, 9),  # This need to be changed when all is done
     'retries': 0
 }
 
 dag = DAG(
     'demo_nashville_housing_pipeline',
     description='Nashville Housing Data Pipeline',
-    schedule_interval=None,
+    schedule_interval=None,                         # schedule_interval='@once',  # This need to be changed when all is done
     default_args=default_args,
-    catchup=False
+    catchup=True,
 )
 
 with dag:
@@ -96,5 +96,4 @@ with dag:
         python_callable=write_data_task,
     )
 
-    # Define task dependencies
     task_read >> task_validate >> task_process >> task_write
