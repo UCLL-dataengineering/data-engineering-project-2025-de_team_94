@@ -3,37 +3,31 @@ from azure.storage.blob import BlobServiceClient
 import pandas as pd
 
 
-class Reader():
-    def __init__(self, file_path):
-        self.__file_path = file_path
-        self.__files = [ f for f in os.listdir(file_path) if os.path.isfile(os.path.join(file_path,f)) ]
-        self.dataFrames = []
+class Reader:
+    def __init__(self, file_path, processed_files_tracker=None):
+        self.file_path = file_path
+        self.processed_files_tracker = processed_files_tracker
+        self.files = [f for f in os.listdir(file_path) if f.endswith('.csv')]
+        self.processed_files = set()
 
-    # Returns a list with all the file names in a specific folder
-    def listFile(self):
-        return self.__files
+        if self.processed_files_tracker and os.path.exists(self.processed_files_tracker):
+            with open(self.processed_files_tracker, 'r') as f:
+                self.processed_files = set(f.read().splitlines())
 
-    # Returns a list of all the dataframes in the folder from csv files
-    def DfList(self):
-        if not self.dataFrames:
-            for file in self.__files:
-                if file.endswith(".csv"):
-                    self.dataFrames.append(pd.read_csv(os.path.join(self.__file_path, file)))
-                else:
-                    raise ValueError("File must be a CSV.")
-        return self.dataFrames
+    def list_unprocessed_files(self):
+        return [f for f in self.files if f not in self.processed_files]
 
-    # Returns a specific dataframe by index 
-    def getDfByIndex(self, index):
-        self.DfList()
-        index -= 1
-        if index < 0 or index >= len(self.dataFrames):
-            raise ValueError("Index out of range.")
-        return self.dataFrames[index]
-    
-    # Returns the amount of files in the folder
-    def getLength(self):
-        return len(self.__files)
+    def read_first_unprocessed(self):
+        unprocessed = self.list_unprocessed_files()
+        if not unprocessed:
+            raise FileNotFoundError("No unprocessed CSV files found.")
+
+        file = unprocessed[0]
+        df = pd.read_csv(os.path.join(self.file_path, file))
+        return df, file
+
+    def get_length(self):
+        return len(self.files)
     
 
 class Writer():

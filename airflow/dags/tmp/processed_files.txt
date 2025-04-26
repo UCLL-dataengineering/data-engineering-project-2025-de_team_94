@@ -1,2 +1,0 @@
-Video_Games.csv
-Video_Games copy.csv

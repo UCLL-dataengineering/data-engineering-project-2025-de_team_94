@@ -1,154 +1,99 @@
 import os
 from airflow import DAG
-from videoGames_pipeline.processor import process_data
-from videoGames_pipeline.reader_writer import Reader, Writer
-from videoGames_pipeline.validation import validate_dataset
 from airflow.operators.python import PythonOperator
-from datetime import datetime, timedelta
 from airflow.sensors.python import PythonSensor
+from airflow.utils.dates import days_ago
+from datetime import timedelta
+
+from videoGames_pipeline.reader_writer import Reader, Writer
+from videoGames_pipeline.processor import process_data
+from videoGames_pipeline.validation import validate_dataset
 
 DATA_FOLDER = 'dags/files/realtime'
 OUTPUT_FOLDER = 'dags/output'
 OUTPUT_FILENAME = 'realtime_processed_data'
 PROCESSED_FILES_TRACKER = 'dags/tmp/processed_files.txt'
+TMP_RAW_PATH = '/tmp/raw_data.csv'
+TMP_VALIDATED_PATH = '/tmp/validated_data.csv'
 
 def check_new_file():
-    if not os.path.exists(DATA_FOLDER):
-        return False
-    
-    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
-
-    if os.path.exists(PROCESSED_FILES_TRACKER):
-        with open(PROCESSED_FILES_TRACKER, 'r') as f:
-            processed = set(f.read().splitlines())
-    else:
-        processed = set()
-
-    for f in files:
-        if f not in processed:
-            return True
-    return False
-
+    reader = Reader(DATA_FOLDER, PROCESSED_FILES_TRACKER)
+    return bool(reader.list_unprocessed_files())
 
 def read_data(**context):
-    import pandas as pd
+    reader = Reader(DATA_FOLDER, PROCESSED_FILES_TRACKER)
+    df, filename = reader.read_first_unprocessed()
 
-    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
-    if os.path.exists(PROCESSED_FILES_TRACKER):
-        with open(PROCESSED_FILES_TRACKER, 'r') as f:
-            processed = set(f.read().splitlines())
-    else:
-        processed = set()
-
-    new_file = None
-    for f in files:
-        if f not in processed:
-            new_file = f
-            break
-
-    if not new_file:
-        raise FileNotFoundError("No new files found")
-    
-    full_path = os.path.join(DATA_FOLDER, new_file)
-    df = pd.read_csv(full_path)
-    tmp_path = '/tmp/raw_data.csv'
-    df.to_csv(tmp_path, index=False)
-
-    context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
-    context['ti'].xcom_push(key='filename', value=new_file)
-
-    print(f"Data read successfully from {new_file}")
-
-    # for file in os.listdir(DATA_FOLDER):
-    #     if file.endswith('.csv'):
-    #         file_path = os.path.join(DATA_FOLDER, file)
-    #         print(f"Reading file from: {file_path}")
-    #         df = pd.read_csv(file_path)
-
-    #         tmp_path = '/tmp/raw_data.csv'
-    #         df.to_csv(tmp_path, index=False)
-    #         context['ti'].xcom_push(key='raw_data_path', value=tmp_path)
-    #         context['ti'].xcom_push(key='csv_filename', value=file)
-    #         return
-    # raise FileNotFoundError("No CSV file found in directory")
-    #files = []
+    df.to_csv(TMP_RAW_PATH, index=False)
+    context['ti'].xcom_push(key='filename', value=filename)
+    print(f"Read file: {filename}")
 
 def validate_data(**context):
     import pandas as pd
-    path = context['ti'].xcom_pull(key='raw_data_path')
-    print(f"Reading from: {path}")
-    df = pd.read_csv(path)
-    print("Data loaded for validation")
 
-    error_log_path = 'dags/tmp/validation_errors.log'
-
+    df = pd.read_csv(TMP_RAW_PATH)
     errors = validate_dataset(df)
+
     if errors:
+        error_log_path = 'dags/tmp/validation_errors.log'
+        os.makedirs(os.path.dirname(error_log_path), exist_ok=True)
         with open(error_log_path, 'w') as f:
-            f.write("Validation failed with errors:\n")
             for index, error_list in errors.items():
                 for error in error_list:
-                    f.write(f"Row {index}: {error}\n") 
+                    f.write(f"Row {index}: {error}\n")
+        raise ValueError(f"Validation failed. Errors written to {error_log_path}")
 
-        raise ValueError(f"Validation failed with errors: {errors}")
-
-    validated_path = '/tmp/validated_data.csv'
-    df.to_csv(validated_path, index=False)
-    context['ti'].xcom_push(key='validated_data_path', value=validated_path)
-    print("Validation successful")
+    df.to_csv(TMP_VALIDATED_PATH, index=False)
+    print("Validation successful.")
 
 def process_data_task(**context):
     import pandas as pd
-    path = context['ti'].xcom_pull(key='validated_data_path')
-    print(f"Reading validated data from: {path}")
-    df = pd.read_csv(path)
+
+    df = pd.read_csv(TMP_VALIDATED_PATH)
     df_processed = process_data(df)
-    context['ti'].xcom_push(key='processed_data', value=df_processed)
-    print("Data processed successfully")
+
+    processed_path = '/tmp/processed_data.csv'
+    df_processed.to_csv(processed_path, index=False)
+    context['ti'].xcom_push(key='processed_data_path', value=processed_path)
+
+    print("Processing successful.")
 
 def write_data_task(**context):
-    files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
-    if os.path.exists(PROCESSED_FILES_TRACKER):
-        with open(PROCESSED_FILES_TRACKER, 'r') as f:
-            processed = set(f.read().splitlines())
-    else:
-        processed = set()
+    import pandas as pd
 
-    new_file = None
-    for f in files:
-        if f not in processed:
-            new_file = f
-            break
-
-    df_processed = context['ti'].xcom_pull(key='processed_data')
-    Writer(df_processed, new_file, OUTPUT_FOLDER)
-
+    processed_path = context['ti'].xcom_pull(key='processed_data_path')
     filename = context['ti'].xcom_pull(key='filename')
+
+    df = pd.read_csv(processed_path)
+    Writer(df, filename, OUTPUT_FOLDER)
+
+    # Update processed tracker
+    os.makedirs(os.path.dirname(PROCESSED_FILES_TRACKER), exist_ok=True)
     with open(PROCESSED_FILES_TRACKER, 'a') as f:
         f.write(filename + '\n')
-    print("Data written successfully")
+
+    print(f"Data written for file: {filename}")
 
 default_args = {
-    'start_date': datetime(2023, 1, 1),  
+    'start_date': days_ago(1),
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
-dag = DAG(
-    'demo_video_games_pipeline',
-    description='VideoGames Data Pipeline',
-    schedule_interval='* * * * *',  
+with DAG(
+    dag_id='demo_video_games_pipeline',
     default_args=default_args,
-    catchup=False
-)
+    schedule_interval='* * * * *',
+    catchup=False,
+    description='VideoGames Data Pipeline',
+) as dag:
 
-with dag:
     wait_for_file = PythonSensor(
         task_id='wait_for_new_file',
         python_callable=check_new_file,
-        poke_interval=10,  # Check every 30s
-        timeout=20,
-        mode='poke'
+        poke_interval=10,
+        timeout=30,
+        mode='poke',
     )
 
     task_read = PythonOperator(
