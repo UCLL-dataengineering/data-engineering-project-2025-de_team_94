@@ -6,11 +6,6 @@ import pandas as pd
 def validate_name(value):
     if not isinstance(value, str):
         return False
-    
-    value_correct = value.strip().title()
-    if not value_correct:
-        return False
-
     return True
 
 def validate_platform(value):
@@ -43,14 +38,14 @@ def validate_genre(value):
         'Role-Playing', 'Shooter', 'Simulation', 'Sports', 'Strategy'
     }
 
-    value = value.strip().title()
+    value = value.strip()
     return value in valid_genres
 
 def validate_publisher(value):
     if not isinstance(value, str):
         return False
     
-    value_correct = value.strip().title()
+    value_correct = value.strip()
     if not value_correct:
         return False
 
