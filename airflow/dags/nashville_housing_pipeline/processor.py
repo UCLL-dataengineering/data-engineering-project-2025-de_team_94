@@ -12,7 +12,7 @@ def process_data(df):
     df = df.dropna(subset=mandatory_columns)
     
     # Drop certain columns
-    columns_to_remove = ['image', 'Sold As Vacant', 'Multiple Parcels Involved in Sale']
+    columns_to_remove = ['image', 'Sold As Vacant', 'Multiple Parcels Involved in Sale', 'Unnamed: 0.1', 'Unnamed: 0' ]
     df = df.drop(columns=columns_to_remove)
 
 

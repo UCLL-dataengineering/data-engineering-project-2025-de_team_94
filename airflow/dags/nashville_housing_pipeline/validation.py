@@ -13,23 +13,23 @@ def validate_parcel_id(value):
     if not isinstance(value, str):
         value = str(value)
     value = value.strip()
-    
-    pattern = r'^\d{3} \d{2} [0-9A-Z]{1,2} \d{3}\.\d{2}$'
+
+    pattern = r'^\d{3} \d{2} \d[A-Z]? \d{3}\.\d{2}$'
     return re.match(pattern, value) is not None
 
 def validate_land_use(value):
     if not isinstance(value, str):
         return False
     stripped = value.strip()
-    return stripped != "" and stripped == stripped.upper()
+    return stripped == stripped.upper()
 
 def validate_property_address(value):
     if not isinstance(value, str):
         return False
     value = value.strip()
 
-    pattern = r'^(\d+\s+)?[\w\s\.\'\-]+$'
-    return re.match(pattern, value) is not None
+    pattern = r'^[A-Z0-9\s\.\'\-]+$'
+    return re.fullmatch(pattern, value) is not None and value == value.upper()
 
 def validate_property_city(value):
     if not isinstance(value, str):
@@ -41,7 +41,7 @@ def validate_property_city(value):
 def validate_date(value):
     try:
         date = pd.to_datetime(value, format='%Y-%m-%d', errors='raise')
-        return date <= pd.Timestamp("2025-05-10")
+        return date <= pd.Timestamp.now()
     except:
         return False
 
@@ -72,9 +72,9 @@ def validate_acreage(value):
         return False
     
 def validate_neighborhood(value):
-    if not isinstance(value, float):
+    if not isinstance(value, (int, float)) or value < 0:
         return False
-    return isinstance(value, (int, float)) and value >= 0
+    return len(str(int(value))) <= 5
 
 def validate_year(value):
     try:
@@ -87,7 +87,7 @@ def validate_numeric(value):
     return isinstance(value, (int, float)) and value >= 0
 
 def validate_bed_bath(value):
-    return isinstance(value, (int, float)) and value >= 0
+    return isinstance(value, (int, float)) and value >= 0 and value <= 20
 
 def validate_row(row):
     errors = []
