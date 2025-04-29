@@ -6,6 +6,10 @@ import pandas as pd
 def validate_name(value):
     if not isinstance(value, str):
         return False
+    
+    value = value.strip()
+    if not value:
+        return False
     return True
 
 def validate_platform(value):
@@ -21,7 +25,7 @@ def validate_platform(value):
     return value in valid_platforms
 
 def validate_yearOfRelease(value):
-    if not isinstance(value, float):
+    if not isinstance(value, int/float):
         return False
 
     if value > datetime.datetime.now().year:
@@ -98,7 +102,7 @@ def validate_rating(value):
         'E', 'M', 'T', 'E10+', 'K-A', 'AO', 'EC', 'RP'
     }
 
-    value = value.strip().upper()
+    value = value.strip()
     return value in valid_ratings
 
 

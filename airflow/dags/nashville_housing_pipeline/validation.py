@@ -39,6 +39,8 @@ def validate_property_city(value):
     return bool(re.fullmatch(r"[A-Z\s]+", value))
 
 def validate_date(value):
+    if not isinstance(value, str):
+        return False
     try:
         date = pd.to_datetime(value, format='%Y-%m-%d', errors='raise')
         return date <= pd.Timestamp.now()
