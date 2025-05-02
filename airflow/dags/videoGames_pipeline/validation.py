@@ -25,7 +25,7 @@ def validate_platform(value):
     return value in valid_platforms
 
 def validate_yearOfRelease(value):
-    if not isinstance(value, int/float):
+    if not isinstance(value, (int, float)):
         return False
 
     if value > datetime.datetime.now().year:

@@ -14,6 +14,9 @@ def validate_parcel_id(value):
         value = str(value)
     value = value.strip()
 
+    if not value:
+        return False
+
     pattern = r'^\d{3} \d{2} \d[A-Z]? \d{3}\.\d{2}$'
     return re.match(pattern, value) is not None
 
@@ -21,12 +24,19 @@ def validate_land_use(value):
     if not isinstance(value, str):
         return False
     stripped = value.strip()
+
+    if not stripped:
+        return False
+    
     return stripped == stripped.upper()
 
 def validate_property_address(value):
     if not isinstance(value, str):
         return False
     value = value.strip()
+
+    if not value:
+        return False
 
     pattern = r'^[A-Z0-9\s\.\'\-]+$'
     return re.fullmatch(pattern, value) is not None and value == value.upper()
@@ -36,11 +46,18 @@ def validate_property_city(value):
         return False
     value = value.strip()
 
+    if not value:
+        return False
+
     return bool(re.fullmatch(r"[A-Z\s]+", value))
 
 def validate_date(value):
     if not isinstance(value, str):
         return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+    
     try:
         date = pd.to_datetime(value, format='%Y-%m-%d', errors='raise')
         return date <= pd.Timestamp.now()
@@ -56,6 +73,9 @@ def validate_legal_reference(value):
 
     value = value.strip().replace(" ", "")
 
+    if not value:
+        return False
+
     match = re.fullmatch(r'-?(\d{7,8})-(\d{6,8})', value)
 
     if not match:
@@ -64,6 +84,9 @@ def validate_legal_reference(value):
 
 def validate_sold_as_vacant(value):
     if not isinstance(value, str):
+        return False
+    value = value.strip()
+    if not value:
         return False
     return value in ['Yes', 'No']
 
